@@ -1,7 +1,7 @@
 pipeline {
     agent {
         docker {
-            image 'maven:3.9.9-eclipse-temurin-17'
+            image 'maven:3.9.9-eclipse-temurin-21'
             // 复用本机 Maven 缓存，加速二次构建
             args '-v $HOME/.m2:/root/.m2'
         }
