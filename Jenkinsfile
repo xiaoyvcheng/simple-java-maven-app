@@ -46,7 +46,8 @@ pipeline {
         failure {
             echo 'Pipeline failed — check Console Output'
         }
-        always {
+        // cleanup 在其它 post 之后执行，避免先删工作区导致无法归档 jar
+        cleanup {
             cleanWs()
         }
     }
