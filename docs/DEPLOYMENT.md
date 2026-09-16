@@ -263,8 +263,8 @@ cd /path/to/simple-java-maven-app/jenkins-controller
 Windows Git Bash / PowerShell 示例：
 
 ```bash
-cd C:/Users/bing/Desktop/python/jenkins-demo/.cache/simple-java-maven-app/jenkins-controller
-# 或 clone 后：cd /path/to/simple-java-maven-app/jenkins-controller
+# Windows 示例（按你本机 clone 路径调整）
+cd /c/path/to/simple-java-maven-app/jenkins-controller
 ```
 
 
@@ -917,7 +917,7 @@ docker compose up -d --build
 **现象**
 
 ```text
-remote: Permission to xiaoyvcheng/simple-java-maven-app.git denied to weibingc.
+remote: Permission to <owner>/<repo>.git denied to <other-github-account>.
 fatal: ... 403
 # 或
 fatal: 响应状态代码不指示成功: 401 (Unauthorized)
