@@ -5,8 +5,10 @@
 > 适用：Windows（Docker Desktop）/ macOS / Linux 本地或单机服务器。  
 >  
 > **职责划分**  
-> - **本仓库**：业务代码、根目录 `Jenkinsfile`、本部署文档  
-> - **Jenkins 平台包**（本机另有 `jenkins-demo`）：`docker-compose.yml` / `Dockerfile` / 插件清单，用于启动 Jenkins 控制器
+> - **本仓库根目录**：业务代码、`Jenkinsfile`（构建本应用）  
+> - **本仓库 `jenkins-controller/`**：`docker-compose.yml` / `Dockerfile` / `plugins.txt`（启动 Jenkins 控制器）  
+> - **本仓库 `jenkins/scripts/`**：官方 Deliver 脚本（与控制器目录无关）  
+> - 本机若仍保留旧目录 `jenkins-demo`，仅作对照；**以本仓库 `jenkins-controller/` 为准**
 
 ---
 
@@ -216,33 +218,30 @@ docker pull hello-world
 
 ## 4. 仓库文件说明
 
-文档所在仓库（`simple-java-maven-app`）是 **业务代码 + 流水线**；Jenkins 控制器由本机 **`jenkins-demo` 平台包**（compose/Dockerfile）启动。
+文档所在仓库（`simple-java-maven-app`）同时包含 **业务代码 + 流水线** 与 **Jenkins 控制器部署文件**。
 
 ```text
-# 业务仓库（本仓库）
 simple-java-maven-app/
-├── Jenkinsfile          # Docker agent 流水线（SCM 使用）
-├── pom.xml / src/       # Maven 业务代码
-├── jenkins/scripts/     # Deliver 脚本等
-├── README.md            # 仓库入口
+├── Jenkinsfile                 # 构建本应用（SCM）
+├── pom.xml / src/
+├── jenkins/scripts/            # 官方 Deliver 脚本（勿与控制器目录混淆）
+├── jenkins-controller/         # Jenkins 控制器
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   ├── plugins.txt
+│   └── README.md
+├── README.md
 └── docs/
-    └── DEPLOYMENT.md    # 本文档（完整部署方案）
-
-# Jenkins 平台包（本机另目录，如 jenkins-demo/）
-jenkins-demo/
-├── docker-compose.yml   # 编排：端口、volume、docker.sock
-├── Dockerfile           # lts-jdk21 + docker-cli
-├── plugins.txt          # 插件清单
-└── README.md
+    └── DEPLOYMENT.md           # 本文档
 ```
 
 
-| 文件                   | 作用                                        |
-| -------------------- | ----------------------------------------- |
-| `docker-compose.yml` | 一键启动 Jenkins；持久化 `jenkins_home`；挂载 sock   |
-| `Dockerfile`         | 保证容器内有 `docker` 命令；预装 Docker Pipeline 等插件 |
-| `plugins.txt`        | 插件 ID 列表，便于版本化与重建                         |
-| `Jenkinsfile`（本仓库根目录） | Docker agent 流水线，Jenkins SCM 直接读取           |
+| 文件 | 作用 |
+| ---- | ---- |
+| `jenkins-controller/docker-compose.yml` | 启动 Jenkins；持久化 `jenkins_home`；挂载 sock |
+| `jenkins-controller/Dockerfile` | lts-jdk21 + `docker-cli` |
+| `jenkins-controller/plugins.txt` | 插件清单 |
+| `Jenkinsfile`（仓库根目录） | Docker agent 流水线，SCM 直接读取 |
 
 
 ---
@@ -255,16 +254,17 @@ jenkins-demo/
 
 ### 5.1 获取本仓库
 
-若已在本机打开本项目，直接进入目录即可：
+请进入本仓库的 **`jenkins-controller`** 子目录（不要在业务根目录盲跑 compose）：
 
 ```bash
-cd /path/to/jenkins-demo
+cd /path/to/simple-java-maven-app/jenkins-controller
 ```
 
 Windows Git Bash / PowerShell 示例：
 
 ```bash
-cd C:/Users/bing/Desktop/python/jenkins-demo
+cd C:/Users/bing/Desktop/python/jenkins-demo/.cache/simple-java-maven-app/jenkins-controller
+# 或 clone 后：cd /path/to/simple-java-maven-app/jenkins-controller
 ```
 
 
@@ -277,8 +277,8 @@ docker compose up -d --build
 
 首次会：
 
-1. 构建 `jenkins-demo:lts-jdk21-docker`（含 docker CLI，耗时数分钟）
-2. 创建 volume `jenkins-demo_jenkins_home`（实际名称以 `docker volume ls` 为准）
+1. 构建 `jenkins-controller:lts-jdk21-docker`（含 docker CLI，耗时数分钟）
+2. 创建 named volume（V1：在 `jenkins-controller` 目录首次 up，常见名为 `jenkins-controller_jenkins_home`；以 `docker volume ls` 为准）
 3. 以后台方式启动容器 `jenkins`
 
 
@@ -396,8 +396,8 @@ https://github.com/xiaoyvcheng/simple-java-maven-app.git
 git clone https://github.com/xiaoyvcheng/simple-java-maven-app.git
 cd simple-java-maven-app
 
-# 本仓库根目录已有 Docker 版 Jenkinsfile；若需从平台包同步可：
-# cp /path/to/jenkins-demo/Jenkinsfile ./Jenkinsfile
+# 根目录已有 Jenkinsfile；一般无需再从别处覆盖
+# cp /path/to/other/Jenkinsfile ./Jenkinsfile
 
 git add Jenkinsfile
 git commit -m "ci: use Docker agent for Maven build on Jenkins"
@@ -571,12 +571,28 @@ docker compose down            # 停止并删容器（保留 volume）
 
 数据在 named volume 中（名称可用 `docker volume ls | grep jenkins` 确认）：
 
+**Volume 策略（V1）**
+
+- 在 `jenkins-controller/` 下执行 `docker compose up` 时，compose 使用本地名 `jenkins_home`，Docker 通常创建 **`<项目目录名>_jenkins_home`**（常见：`jenkins-controller_jenkins_home`）。
+- 这与早期在 `jenkins-demo/` 目录启动时的 `jenkins-demo_jenkins_home` **不是同一个 volume**（除非你改过配置）。
+- **沿用旧数据**：可临时把 `docker-compose.yml` 中 volumes 改为已有外部卷，例如：
+
+```yaml
+volumes:
+  jenkins_home:
+    external: true
+    name: jenkins-demo_jenkins_home
+```
+
+- **接受新 volume**：直接 up 即可（等于新的一份 Jenkins 家目录）。
+- **不要**同时在 `jenkins-demo` 与 `jenkins-controller` 两处 `compose up`（会抢 `container_name: jenkins` / 端口）。
+
 ```bash
-# 备份（在 jenkins-demo 目录执行）
+# 备份（在 jenkins-controller 目录执行，便于 $(pwd) 落在该目录）
 # Windows Git Bash 必须加 MSYS_NO_PATHCONV=1，否则 /backup 会被改写成
 # C:/Program Files/Git/backup/... 导致失败
 MSYS_NO_PATHCONV=1 docker run --rm \
-  -v jenkins-demo_jenkins_home:/data \
+  -v jenkins-controller_jenkins_home:/data \
   -v "$(pwd)":/backup \
   alpine tar czf /backup/jenkins_home_backup.tgz -C /data .
 ```
@@ -588,7 +604,7 @@ PowerShell / Linux / macOS 可去掉行首的 `MSYS_NO_PATHCONV=1`。
 ```bash
 docker compose down
 MSYS_NO_PATHCONV=1 docker run --rm \
-  -v jenkins-demo_jenkins_home:/data \
+  -v jenkins-controller_jenkins_home:/data \
   -v "$(pwd)":/backup \
   alpine sh -c "cd /data && tar xzf /backup/jenkins_home_backup.tgz"
 docker compose up -d
@@ -652,7 +668,7 @@ docker system prune
 | ----------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
 | 8080 / 8081 打不开                                 | 容器未起 / 端口占用                              | `docker compose ps`、`logs`；本机若已有服务占 8080，用 `8081:8080`                      |
 | 忘记管理员密码                                         | —                                        | 仍可用 `initialAdminPassword`（若向导未完成）；否则重置见 Jenkins 官方文档                       |
-| `docker: not found`                             | 镜像未装 CLI，或装了 `docker.io` 却无 `docker-cli` | 本仓库 Dockerfile 使用 `docker-cli`；`compose up -d --build`                      |
+| `docker: not found`                             | 镜像未装 CLI，或装了 `docker.io` 却无 `docker-cli` | `jenkins-controller/Dockerfile` 使用 `docker-cli`；`compose up -d --build`                      |
 | `permission denied` on docker.sock              | 权限不足                                     | 确认 compose 中 `user: root`；Linux 检查 sock 权限                                  |
 | 无法 pull 镜像 / 极慢 / 某层卡住                          | 直连 Docker Hub 失败；部分加速源大层很慢               | 见 [3.3.1](#331-国内-docker-镜像加速本机实测可用)；优先 DaoCloud；可用 crane 拉取后 `docker load` |
 | Git clone 失败                                    | 地址错 / 需认证 / 网络                           | 核对 URL；加 PAT；检查代理                                                           |
@@ -735,7 +751,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8081/login
 
 ## 附录 A：端口修改示例
 
-`docker-compose.yml`：
+`jenkins-controller/docker-compose.yml`：
 
 ```yaml
 ports:
@@ -813,7 +829,7 @@ docker tag docker.m.daocloud.io/jenkins/jenkins:lts-jdk21 jenkins/jenkins:lts-jd
 
 **处理**
 
-`docker-compose.yml` 使用：
+`jenkins-controller/docker-compose.yml` 使用：
 
 ```yaml
 ports:
@@ -883,7 +899,7 @@ Installed 列表大量 Blue Ocean / Design Language 显示 Deprecated。
 
 ```bash
 docker compose stop
-docker run --rm -v jenkins-demo_jenkins_home:/var/jenkins_home alpine \
+docker run --rm -v jenkins-controller_jenkins_home:/var/jenkins_home alpine \
   sh -c 'rm -rf /var/jenkins_home/plugins/blueocean* /var/jenkins_home/plugins/jenkins-design-language*'
 docker compose up -d --build
 ```
@@ -1082,7 +1098,7 @@ Git Bash 把容器路径 `/backup` 映射成了 Git 安装目录。
 **处理**
 
 见 [§11.2](#112-备份-jenkins-数据)：命令前加 `MSYS_NO_PATHCONV=1`。  
-备份文件默认落在执行命令时的当前目录，例如 `jenkins-demo/jenkins_home_backup.tgz`。
+备份文件默认落在执行命令时的当前目录，例如 `jenkins-controller/jenkins_home_backup.tgz`。
 
 ---
 
@@ -1200,5 +1216,5 @@ git push --force origin master   # 改写远端历史，多人协作禁用
 
 ---
 
-文档版本：与本仓库 `Dockerfile` / `docker-compose.yml` / `Jenkinsfile` 同步维护。  
+文档版本：与本仓库 `jenkins-controller/`（Dockerfile / docker-compose.yml / plugins.txt）及根目录 `Jenkinsfile` 同步维护。  
 变更配置后请同步更新本节与 README 快速入口。

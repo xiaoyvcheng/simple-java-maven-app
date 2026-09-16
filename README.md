@@ -8,11 +8,8 @@
 
 ## 完整部署方案
 
-逐步安装 Jenkins、配置流水线、排障与回退，见：
-
-→ **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
-
-其中包含：国内镜像加速、实战踩坑、[回退手册](docs/DEPLOYMENT.md#16-回退手册) 等。
+→ **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**  
+（含国内镜像加速、实战踩坑、[回退手册](docs/DEPLOYMENT.md#16-回退手册)）
 
 ---
 
@@ -20,38 +17,48 @@
 
 | 路径 | 说明 |
 |------|------|
-| `Jenkinsfile` | Docker agent 流水线（`maven:*-temurin-21`） |
-| `src/` / `pom.xml` | 示例 Java 应用（控制台输出问候语） |
-| `jenkins/scripts/deliver.sh` | Deliver 阶段脚本 |
-| `docs/DEPLOYMENT.md` | **Jenkins + Docker 完整部署文档** |
+| `Jenkinsfile` | 构建**本应用**的流水线（Docker agent / temurin-21） |
+| `src/` / `pom.xml` | 示例 Java 应用 |
+| `jenkins/scripts/` | 官方 Deliver 脚本（与控制器目录无关） |
+| `jenkins-controller/` | **Jenkins 控制器**：compose / Dockerfile / 插件清单 |
+| `docs/DEPLOYMENT.md` | 完整部署文档 |
 
 ---
 
-## 和 Jenkins 怎么配合
+## 快速开始
 
-1. 本机用平台包（如 `jenkins-demo`）执行 `docker compose up -d --build` 启动 Jenkins（默认 UI：http://localhost:8081）  
-2. Jenkins 新建 **Pipeline** 任务，SCM 指向本仓库：
+### 1. 启动 Jenkins 控制器
 
-   `https://github.com/xiaoyvcheng/simple-java-maven-app.git`
+```bash
+cd jenkins-controller
+docker compose up -d --build
+```
 
-   - Branch：`*/master`  
-   - Script Path：`Jenkinsfile`  
+- UI：http://localhost:8081  
+- 密码：见 [`jenkins-controller/README.md`](jenkins-controller/README.md)  
+- 详细步骤：[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 
-3. **Build Now**，查看阶段视图、测试报告与 `target/*.jar` 产物  
+> Volume（V1）：在本目录首次 `up` 时，一般会创建新的 named volume（如 `jenkins-controller_jenkins_home`）。  
+> 若要沿用旧的 `jenkins-demo_jenkins_home`，见部署文档备份/volume 说明。
 
-流水线 **不** 在 Jenkins「全局工具」里配 JDK/Maven；版本由 `Jenkinsfile` 中的容器镜像决定。
+### 2. 创建 Pipeline 任务
+
+- SCM：`https://github.com/xiaoyvcheng/simple-java-maven-app.git`  
+- Branch：`*/master`  
+- Script Path：`Jenkinsfile`  
+
+### 3. Build Now
+
+查看阶段视图、Test Result、Artifacts（`*.jar`）。
+
+流水线**不**在 Jenkins 全局工具里配 JDK/Maven；版本由 `Jenkinsfile` 镜像决定。
 
 ---
 
 ## 构建成功后能看到什么
 
-Deliver 会执行一次 `java -jar ...`（例如打印 `Hello World!`），进程随后退出。
-
-这是 **CI 演示**，不是常驻 Web 服务。验证方式：
-
-- Console Output（Deliver 日志）  
-- Test Result  
-- Build Artifacts 中的 jar  
+Deliver 一次性执行 `java -jar ...`（打印问候语）后退出，**不是**常驻 Web 服务。  
+验证看 Console / Test Result / Build Artifacts。
 
 ---
 

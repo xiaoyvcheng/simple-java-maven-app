@@ -1,0 +1,23 @@
+services:
+  jenkins:
+    build: .
+    image: jenkins-controller:lts-jdk21-docker
+    container_name: jenkins
+    restart: unless-stopped
+    # 需要访问宿主机 docker.sock，用 root 最省事（演示环境）
+    user: root
+    ports:
+      # 本机 8080 常被占用时用 8081
+      - "8081:8080"
+      - "50000:50000"
+    volumes:
+      # V1：项目本地 named volume。在本目录首次 up 时，Docker 通常创建
+      #   <目录名>_jenkins_home  （例如 jenkins-controller_jenkins_home）
+      # 若要沿用旧数据 jenkins-demo_jenkins_home，见 docs/DEPLOYMENT.md §11.2 说明
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+
+volumes:
+  jenkins_home:

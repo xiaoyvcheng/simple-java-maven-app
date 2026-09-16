@@ -1,0 +1,11 @@
+# Core CI plugins (no Blue Ocean — deprecated)
+docker-workflow
+docker-plugin
+git
+workflow-aggregator
+junit
+credentials-binding
+ws-cleanup
+timestamper
+pipeline-stage-view
+github
